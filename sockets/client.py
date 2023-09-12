@@ -3,7 +3,6 @@ import components.crypt as crypt
 import sys
 import logging
 from components import protocol
-import json
 import binascii
 
 
@@ -16,6 +15,15 @@ class Client:
         self._server_public_rsa = None
         self._aes_key = None
         self._public_rsa, self._key_pair = crypt.generate_rsa_keys()
+        self._commands = {
+            "exit":  self.terminate_client,
+            "whoami": self.whoami,
+        }
+
+
+    def whoami(self) -> str:
+        return "who am i ran"
+
 
     def terminate_client(self, connection: socket.socket) -> None:
         connection.close()
@@ -35,7 +43,14 @@ class Client:
             try:
                 msg = self.protocol.receive(connection).decode()
                 if msg:
-                    self.protocol.send(connection, msg.encode())
+                    decrypted_msg = crypt.decrypt_AES_GCM(msg, self._aes_key).decode()
+                    print(decrypted_msg)
+                    if decrypted_msg == "exit":
+                        self.terminate_client(connection)
+                    else:
+                        cmd_output = self._commands.get(decrypted_msg, lambda: 'Invalid')()
+                        self.protocol.send(
+                            connection, crypt.encrypt_AES_GCM(cmd_output.encode(), self._aes_key).encode())
                 else:
                     logging.info("Unknown command: %s", msg)
             except socket.error as error_message:

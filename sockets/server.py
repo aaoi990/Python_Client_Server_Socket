@@ -1,6 +1,7 @@
 import socket
 import argparse
 import logging
+import threading
 import components.protocol as protocol
 import components.crypt as crypt
 from Crypto.Random import get_random_bytes
