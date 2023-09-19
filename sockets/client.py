@@ -2,6 +2,7 @@ import socket
 import components.crypt as crypt
 import sys
 import logging
+import os
 from components import protocol
 import binascii
 
@@ -22,8 +23,7 @@ class Client:
 
 
     def whoami(self) -> str:
-        return "who am i ran"
-
+        return os.getuid()
 
     def terminate_client(self, connection: socket.socket) -> None:
         connection.close()

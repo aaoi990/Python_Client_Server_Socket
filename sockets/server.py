@@ -1,55 +1,34 @@
-import socket
 import argparse
 import logging
-import threading
-import components.protocol as protocol
+import socket
+
 import components.crypt as crypt
-from Crypto.Random import get_random_bytes
-from Crypto.PublicKey import RSA
-import binascii
+import components.host as remote_host
 
-AES_KEY_SIZE = 32
-
+logger = logging.getLogger(__name__)
 
 class Server:
     def __init__(self, address: str, port: int) -> None:
         self.address = address
         self.port = port
         self.connections = []
-        self.protocol = protocol.Protocol()
-        self._public_rsa, self._key_pair = crypt.generate_rsa_keys()
-        self._client_public_rsa = None
-        self._aes = get_random_bytes(AES_KEY_SIZE)
-        self._count = 0
+        self._remote_hosts = []
 
-    def _configure_crypt(self, connection: socket.socket) -> None:
-        self.protocol.send(connection, self._public_rsa.export_key())
-        try:
-            self._client_public_rsa = RSA.import_key(
-                self.protocol.receive(connection))
-        except TypeError as key_error:
-            logging.error("Error importing the clients RSA public key.")
-
-        encrypted_aes_key = crypt.encrypt_aes_key(
-            self._client_public_rsa, self._aes)
-        self.protocol.send(
-            connection, binascii.hexlify(encrypted_aes_key))
-
-    def handle_user_connection(self, connection: socket.socket) -> None:
+    def handle_user_connection(self, host: remote_host, connection: socket.socket) -> None:
         while True:
             msg = None
             while not msg:
                 msg = input("Send command to client: ").encode()
             try:
                 if msg:
-                    self.protocol.send(
-                        connection, crypt.encrypt_AES_GCM(msg, self._aes).encode())
-                    msg = self.protocol.receive(connection)
-                    decrypted_msg = crypt.decrypt_AES_GCM(msg, self._aes)
+                    host.protocol.send(
+                        connection, crypt.encrypt_AES_GCM(msg, host.aes).encode())
+                    msg = host.protocol.receive(connection)
+                    decrypted_msg = crypt.decrypt_AES_GCM(msg, host.aes)
                 if decrypted_msg:
                     logging.info(
                         "Received message from client: %s", decrypted_msg.decode())
-                    self._count += 1
+                    host.count += 1
 
             except socket.error as comms_error:
                 logging.error("Transmission error: %s", comms_error)
@@ -62,12 +41,6 @@ class Server:
             self.connections.remove(connection)
 
     def run(self) -> None:
-        logging.info("Generating keys......")
-        if self._public_rsa and self._key_pair:
-            logging.info("Keys generated successfully")
-        else:
-            logging.error("Error generating keys")
-            return
         try:
             socket_instance = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         except socket.error as error_message:
@@ -85,10 +58,18 @@ class Server:
 
         while True:
             socket_connection, adddress = socket_instance.accept()
-            logging.info("Client connected: %s", adddress)
+            logging.info("Client connected from: %s", adddress)
+            logging.info("Storing new remote host data.")
+            name = input("Input new remote host identifier: ")
+            new_host = remote_host.Host(socket_connection, name)
+            self._remote_hosts.append(new_host)          
             self.connections.append(socket_connection)
-            self._configure_crypt(socket_connection)
-            self.handle_user_connection(socket_connection)
+            logging.info("%s Added", repr(new_host))            
+            if self.connections:
+                print("You are already to connected to the first host")           
+                self.handle_user_connection(new_host, socket_connection)
+            else:
+                logging.warning("A new remote host %s has connected", repr(new_host))
 
 
 if __name__ == "__main__":
