@@ -20,9 +20,9 @@ class Protocol:
 
     def receive(self, sock: socket.socket) -> str:
         header = self._raw_receive(sock, self._header_len)
-        logger.info("Recieved message header: %s", header)
+        logger.debug("Recieved message header: %s", header)
         msg_len = struct.unpack('>I', header)[0]
-        logger.info("Recieved message lenght: %s", msg_len)
+        logger.debug("Recieved message lenght: %s", msg_len)
         msg = self._raw_receive(sock, msg_len)
         return msg
 

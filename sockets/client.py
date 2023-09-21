@@ -1,10 +1,14 @@
-import socket
-import components.crypt as crypt
-import sys
+import argparse
+import binascii
 import logging
 import os
+import socket
+import sys
+
+import components.crypt as crypt
 from components import protocol
-import binascii
+
+logger = logging.getLogger(__name__)
 
 
 class Client:
@@ -26,6 +30,7 @@ class Client:
         return os.getuid()
 
     def terminate_client(self, connection: socket.socket) -> None:
+        connection.shutdown(socket.SHUT_RDWR)
         connection.close()
         self.running = False
         logging.warning("Client terminated")
@@ -44,7 +49,7 @@ class Client:
                 msg = self.protocol.receive(connection).decode()
                 if msg:
                     decrypted_msg = crypt.decrypt_AES_GCM(msg, self._aes_key).decode()
-                    print(decrypted_msg)
+                    logging.info("Received message from server: %s", decrypted_msg)
                     if decrypted_msg == "exit":
                         self.terminate_client(connection)
                     else:
@@ -74,6 +79,14 @@ class Client:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    parser = argparse.ArgumentParser(description="Client socket")
+    parser.add_argument('-l', default=False, action='store_true', help='Enables logging')
+    args = parser.parse_args()
+    if args.l:
+         logging.basicConfig(level=logging.DEBUG)
+    else:
+         logging.disable(logging.ERROR)
     client = Client('127.0.0.1', 12000)
     client.run()
+
+    
